@@ -67,4 +67,20 @@ final class GPXExporterTests: XCTestCase {
             try? FileManager.default.removeItem(at: tempURL)
         }
     }
+
+    func testSaveToDocumentsDirectory() {
+        let sampleContent = "<gpx>Document Test Content</gpx>"
+        let docURL = GPXExporter.saveToDocumentsDirectory(content: sampleContent, filename: "doc_test_export")
+
+        XCTAssertNotNil(docURL)
+        XCTAssertTrue(docURL!.path.hasSuffix(".gpx"))
+
+        let readBack = try? String(contentsOf: docURL!, encoding: .utf8)
+        XCTAssertEqual(readBack, sampleContent)
+
+        // Nettoyage
+        if let docURL {
+            try? FileManager.default.removeItem(at: docURL)
+        }
+    }
 }

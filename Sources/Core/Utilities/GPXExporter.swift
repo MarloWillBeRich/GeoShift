@@ -121,10 +121,35 @@ public enum GPXExporter {
         """
     }
 
-    // MARK: - Écriture Fichier Temporaire pour Partage
+    // MARK: - Écriture Fichier & Partage (Compatible App Fichiers iOS)
 
-    /// Écrit le contenu GPX dans un fichier temporaire prêt pour `ShareLink` ou `UIActivityViewController`.
+    /// Écrit le fichier GPX directement dans le dossier Documents de l'application (visible dans l'application Fichiers iOS).
+    @discardableResult
+    public static func saveToDocumentsDirectory(content: String, filename: String = "route") -> URL? {
+        let cleanFilename = filename
+            .replacingOccurrences(of: " ", with: "_")
+            .replacingOccurrences(of: "/", with: "-")
+        let finalFilename = cleanFilename.hasSuffix(".gpx") ? cleanFilename : "\(cleanFilename).gpx"
+
+        guard let docsDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            return nil
+        }
+        let fileURL = docsDir.appendingPathComponent(finalFilename)
+
+        do {
+            try content.write(to: fileURL, atomically: true, encoding: .utf8)
+            return fileURL
+        } catch {
+            return nil
+        }
+    }
+
+    /// Écrit le contenu GPX dans un fichier temporaire prêt pour `ShareLink` ou `UIActivityViewController`
+    /// et l'enregistre simultanément dans le dossier partagé Documents.
     public static func createTemporaryGPXFile(content: String, filename: String = "route") -> URL? {
+        // Enregistrement miroir dans Documents pour visibilité dans l'app Fichiers (UIFileSharingEnabled)
+        _ = saveToDocumentsDirectory(content: content, filename: filename)
+
         let cleanFilename = filename
             .replacingOccurrences(of: " ", with: "_")
             .replacingOccurrences(of: "/", with: "-")

@@ -50,6 +50,8 @@ targets:
         NSLocationAlwaysAndWhenInUseUsageDescription: "GeoShift utilise les coordonnées pour le suivi continu et la simulation de trajectoires."
         UIBackgroundModes:
           - location
+        UIFileSharingEnabled: YES
+        LSSupportsOpeningDocumentsInPlace: YES
     settings:
       base:
         PRODUCT_NAME: "GeoShift"

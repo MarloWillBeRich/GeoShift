@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// Guide interactif expliquant l'intégration du pont de simulation GPX officiel avec Apple Xcode.
+/// Guide interactif expliquant l'installation par Sideloading (sans compte payant)
+/// et l'intégration du pont de simulation GPX officiel avec Apple Xcode.
 public struct XcodeGuideView: View {
     @State private var demoGPXURL: URL?
     @State private var isSharePresented: Bool = false
@@ -10,19 +11,19 @@ public struct XcodeGuideView: View {
     public var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                // Bannière d'introduction d'intégrité Apple
+                // Section Sideloading & Compte Gratuit
                 VStack(alignment: .leading, spacing: 10) {
                     HStack(spacing: 8) {
-                        Image(systemName: "lock.shield.fill")
+                        Image(systemName: "arrow.down.circle.fill")
                             .font(.system(size: 20))
-                            .foregroundStyle(GeoTheme.statusWarning)
+                            .foregroundStyle(GeoTheme.accentPrimary)
 
-                        Text("Conformité & Sandbox Apple")
+                        Text("Sideloading (Compte Apple Gratuit)")
                             .font(.system(.headline, design: .rounded).weight(.bold))
                             .foregroundStyle(GeoTheme.textPrimary)
                     }
 
-                    Text("Sur un appareil iOS officiel non-jailbreaké, la sécurité du bac à sable (Sandbox) interdit rigoureusement à une application tierce de modifier le GPS global du système pour les autres applications.\n\nGeoShift résout ce défi grâce à son générateur de fichiers **.gpx standardisés 1.1** avec horodatage séquentiel, permettant de piloter officiellement le moteur de simulation de localisation d'Apple via Xcode.")
+                    Text("GeoShift est compilé **sans aucun entitlement payant restreint** (aucun Push, ni CloudKit obligatoire). L'archive **`GeoShift-Sideload.ipa`** est 100% installable gratuitement avec votre simple identifiant Apple personnel via **Sideloadly** (Windows/Mac), **AltStore**, **SideStore**, **Feather** ou **TrollStore** (sans expiration sur iOS compatibles).")
                         .font(.system(size: 13, design: .rounded))
                         .foregroundStyle(GeoTheme.textSecondary)
                         .lineSpacing(3)
@@ -30,37 +31,78 @@ public struct XcodeGuideView: View {
                 .padding(16)
                 .cardSurface()
 
-                // Guide Pas à Pas
-                Text("PROTOCOLE DE CONNEXION XCODE")
+                // Guide Pas à Pas Sideloadly (Windows & Mac)
+                Text("INSTALLATION VIA SIDELOADLY / ALTSTORE")
                     .font(.system(size: 11, weight: .bold, design: .rounded))
                     .foregroundStyle(GeoTheme.textSecondary)
                     .padding(.horizontal, 4)
 
                 stepCard(
                     number: 1,
-                    title: "Créer et exporter l'itinéraire",
-                    description: "Dans l'onglet 'Itinéraires', composez votre parcours, ajustez la vitesse voulue (ex: Voiture 50 km/h) puis touchez 'GPX' pour exporter le fichier via AirDrop vers votre Mac.",
-                    icon: "square.and.arrow.up"
+                    title: "Télécharger GeoShift-Sideload.ipa",
+                    description: "Récupérez le fichier .ipa généré via le workflow GitHub Actions (artefact 'GeoShift-Sideload-IPA') ou compilé via le script build_sideload_ipa.sh.",
+                    icon: "arrow.down.doc.fill"
                 )
 
                 stepCard(
                     number: 2,
-                    title: "Intégrer le .gpx dans Xcode",
-                    description: "Glissez-déposez le fichier .gpx dans l'arborescence de votre projet iOS sur Xcode (Mac). Cochez 'Copy items if needed'.",
-                    icon: "folder.badge.plus"
+                    title: "Brancher l'iPhone et ouvrir Sideloadly",
+                    description: "Branchez votre iPhone à votre PC (Windows) ou Mac, glissez le fichier .ipa dans Sideloadly et renseignez votre Apple ID gratuit pour signer l'application.",
+                    icon: "cable.connector"
                 )
 
                 stepCard(
                     number: 3,
-                    title: "Activer la simulation au lancement",
-                    description: "Dans Xcode, cliquez sur votre Scheme > Edit Scheme... > Onglet 'Run' > Onglet 'Options' > Cochez 'Simulate Location' et sélectionnez votre fichier .gpx.",
-                    icon: "gearshape.2"
+                    title: "Valider le profil développeur sur iOS",
+                    description: "Sur votre iPhone, rendez-vous dans Réglages > Confidentialité et sécurité > Mode développeur (Activer), puis Réglages > Général > Gestion des appareils pour approuver votre certificat.",
+                    icon: "checkmark.shield.fill"
                 )
+
+                // Accès direct aux fichiers GPX
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "folder.fill")
+                            .font(.system(size: 18))
+                            .foregroundStyle(GeoTheme.accentSecondary)
+
+                        Text("Dossier Partagé 'Fichiers' iOS")
+                            .font(.system(.headline, design: .rounded).weight(.bold))
+                            .foregroundStyle(GeoTheme.textPrimary)
+                    }
+
+                    Text("Grâce à `UIFileSharingEnabled`, chaque fichier .gpx généré ou exporté dans GeoShift est directement stocké et accessible dans l'application officielle **Fichiers iOS** :")
+                        .font(.system(size: 13, design: .rounded))
+                        .foregroundStyle(GeoTheme.textSecondary)
+
+                    HStack(spacing: 6) {
+                        Image(systemName: "iphone")
+                            .foregroundStyle(GeoTheme.accentPrimary)
+                        Text("Fichiers > Sur mon iPhone > GeoShift")
+                            .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(GeoTheme.textPrimary)
+                    }
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 12)
+                    .background(GeoTheme.backgroundSecondary)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+
+                    Text("Vous pouvez ainsi brancher votre iPhone en USB sur un PC Windows ou Mac et récupérer instantanément tous vos fichiers GPX sans passer par le Cloud.")
+                        .font(.system(size: 12, design: .rounded))
+                        .foregroundStyle(GeoTheme.textSecondary)
+                }
+                .padding(16)
+                .cardSurface()
+
+                // Guide Pas à Pas Simulation Système Xcode
+                Text("PILOTAGE DU GPS SYSTÈME (XCODE & OUTILS PC)")
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .foregroundStyle(GeoTheme.textSecondary)
+                    .padding(.horizontal, 4)
 
                 stepCard(
                     number: 4,
-                    title: "Contrôler en direct pendant le débogage",
-                    description: "Lorsque l'application tourne sur votre iPhone en USB ou Wi-Fi, utilisez la barre de débogage Xcode : Debug > Simulate Location > Votre Fichier GPX. Xcode interpolera la vitesse exactement selon les balises générées par GeoShift !",
+                    title: "Injecter le GPX dans Xcode",
+                    description: "Sur Mac, glissez le .gpx dans Xcode. Dans Edit Scheme > Run > Options, cochez 'Simulate Location' et sélectionnez votre tracé. Xcode rejouera fidèlement la vitesse interpolée par GeoShift !",
                     icon: "play.circle.fill"
                 )
 
@@ -75,12 +117,12 @@ public struct XcodeGuideView: View {
                     .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(GeoPrimaryButtonStyle())
-                .padding(.top, 8)
+                .padding(.top, 4)
             }
             .padding(16)
         }
         .background(GeoTheme.backgroundPrimary.ignoresSafeArea())
-        .navigationTitle("Pont Développeur Xcode")
+        .navigationTitle("Sideloading & Guide Xcode")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $isSharePresented) {
             if let url = demoGPXURL {
@@ -103,7 +145,7 @@ public struct XcodeGuideView: View {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
                     Text(title)
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
                         .foregroundStyle(GeoTheme.textPrimary)
 
                     Spacer()
