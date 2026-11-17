@@ -14,7 +14,7 @@ concurrency:
 jobs:
   build-ipa:
     name: Build GeoShift-Sideload.ipa
-    runs-on: macos-14
+    runs-on: macos-latest
 
     steps:
       - name: Checkout Codebase
