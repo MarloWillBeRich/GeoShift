@@ -133,3 +133,38 @@ public struct GeoSecondaryButtonStyle: ButtonStyle {
             .animation(GeoTheme.quickSpring, value: configuration.isPressed)
     }
 }
+
+public struct GeoTextFieldStyle: TextFieldStyle {
+    public init() {}
+
+    public func _body(configuration: TextField<Self._Label>) -> some View {
+        configuration
+            .font(.system(size: 14, weight: .medium, design: .monospaced))
+            .foregroundStyle(GeoTheme.textPrimary)
+            .padding(.vertical, 10)
+            .padding(.horizontal, 12)
+            .background(GeoTheme.backgroundSecondary)
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
+            )
+    }
+}
+
+// MARK: - Feuille de Partage Système UIKit (AirDrop, Fichiers, Messages)
+
+public struct ShareSheetView: UIViewControllerRepresentable {
+    public let activityItems: [Any]
+
+    public init(activityItems: [Any]) {
+        self.activityItems = activityItems
+    }
+
+    public func makeUIViewController(context: Context) -> UIActivityViewController {
+        let controller = UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+        return controller
+    }
+
+    public func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}

@@ -63,7 +63,8 @@ public final class SavedRoute {
         self.expectedDurationSeconds = expectedDurationSeconds
         self.createdAt = createdAt
         self.transportTypeRawValue = transportTypeRawValue
-        self.waypoints = waypoints
+        let encoder = JSONEncoder()
+        self.waypointsData = (try? encoder.encode(waypoints)) ?? Data()
     }
 
     /// Décode et ré-encode les waypoints de façon transparente depuis la propriété binaire.

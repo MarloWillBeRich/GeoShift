@@ -12,18 +12,14 @@ public final class RealLocationProvider: NSObject, CLLocationManagerDelegate, Lo
     public private(set) var authorizationStatus: CLAuthorizationStatus
 
     public var telemetryStream: AsyncStream<TelemetrySnapshot> {
-        AsyncStream { [weak self] continuation in
-            guard let self else {
-                continuation.finish()
-                return
-            }
-            self.continuation = continuation
-            continuation.onTermination = { @Sendable [weak self] _ in
-                Task { @MainActor in
-                    self?.stop()
-                }
+        let (stream, continuation) = AsyncStream.makeStream(of: TelemetrySnapshot.self)
+        self.continuation = continuation
+        continuation.onTermination = { @Sendable [weak self] _ in
+            Task { @MainActor in
+                self?.stop()
             }
         }
+        return stream
     }
 
     public override init() {

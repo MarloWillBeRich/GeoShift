@@ -48,11 +48,6 @@ public final class LocationEngine {
         startRealHardware()
     }
 
-    deinit {
-        realStreamTask?.cancel()
-        simStreamTask?.cancel()
-    }
-
     // MARK: - Basculement de Source
 
     /// Active l'acquisition GPS matérielle réelle.

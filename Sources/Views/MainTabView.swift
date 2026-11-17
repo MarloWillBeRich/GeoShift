@@ -1,6 +1,7 @@
 import SwiftUI
 
 /// Vue principale englobant la barre d'onglets et l'affichage des notifications toasts éphémères.
+@MainActor
 public struct MainTabView: View {
     @Environment(AppState.self) private var appState
 

@@ -71,13 +71,14 @@ public struct TelemetrySnapshot: Sendable, Equatable {
 }
 
 /// Protocole unifié pour les fournisseurs de télémétrie matériels et simulés.
+@MainActor
 public protocol LocationProviderProtocol: AnyObject, Sendable {
     /// Flux asynchrone émettant les instantanés télémétriques continus.
     var telemetryStream: AsyncStream<TelemetrySnapshot> { get }
 
     /// Démarre le fournisseur de localisation.
-    func start() async
+    func start()
 
     /// Arrête le flux et libère les ressources matérielles ou timers.
-    func stop() async
+    func stop()
 }

@@ -382,15 +382,3 @@ private struct WaypointMarker: View {
         }
     }
 }
-
-// MARK: - Share Sheet UIKit Wrapper
-
-public struct ShareSheetView: UIViewControllerRepresentable {
-    public let activityItems: [Any]
-
-    public func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
-    }
-
-    public func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
-}

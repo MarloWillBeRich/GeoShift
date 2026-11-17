@@ -44,7 +44,7 @@ public struct DashboardView: View {
                     MapCompass()
                     MapScaleView()
                 }
-                .onTapGesture { screenPoint in
+                .onTapGesture(coordinateSpace: .local) { screenPoint in
                     if let coord = mapProxy.convert(screenPoint, from: .local) {
                         appState.triggerHapticFeedback(.light)
                         viewModel.handleMapLongPress(at: coord)
