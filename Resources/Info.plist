@@ -30,10 +30,6 @@
     <string>GeoShift requiert l&apos;accès à votre position pour afficher la télémétrie matérielle réelle et la comparer avec les simulations.</string>
     <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
     <string>GeoShift utilise la localisation pour le suivi de trajectoire et l&apos;étalonnage des données télémétriques.</string>
-    <key>UIBackgroundModes</key>
-    <array>
-        <string>location</string>
-    </array>
     <key>UIFileSharingEnabled</key>
     <true/>
     <key>LSSupportsOpeningDocumentsInPlace</key>

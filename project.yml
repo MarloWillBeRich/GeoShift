@@ -48,8 +48,6 @@ targets:
           - UIInterfaceOrientationLandscapeRight
         NSLocationWhenInUseUsageDescription: "GeoShift requiert l'accès à la localisation pour afficher la télémétrie matérielle réelle et la comparer avec les simulations."
         NSLocationAlwaysAndWhenInUseUsageDescription: "GeoShift utilise les coordonnées pour le suivi continu et la simulation de trajectoires."
-        UIBackgroundModes:
-          - location
         UIFileSharingEnabled: YES
         LSSupportsOpeningDocumentsInPlace: YES
     settings:
