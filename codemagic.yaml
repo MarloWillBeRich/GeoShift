@@ -116,7 +116,7 @@ workflows:
           fi
           echo "✅ Bundle ID com.geoshift.app validé."
 
-      - name: "8. Génération du Paquet IPA Non Signé (Ready pour Sideloadly)"
+      - name: "8. Génération du Paquet IPA Non Signé (GeoShift-Unsigned.ipa)"
         script: |
           set -e
           echo "📦 Création du paquet IPA non signé..."
