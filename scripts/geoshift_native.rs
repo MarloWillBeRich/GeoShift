@@ -6,6 +6,9 @@ fn panic(_info: &core::panic::PanicInfo) -> ! {
     loop {}
 }
 
+#[no_mangle]
+pub extern "C" fn rust_eh_personality() {}
+
 extern "C" {
     fn objc_getClass(name: *const u8) -> *mut u8;
     fn sel_registerName(name: *const u8) -> *mut u8;
@@ -463,17 +466,15 @@ pub unsafe extern "C" fn did_finish_launching(
         cf(map_layer, sel_registerName(b"setCornerRadius:\0".as_ptr()), 16.0);
         objc_msgSend(map_layer, sel_registerName(b"setMasksToBounds:\0".as_ptr()), 1 as usize as *mut u8);
 
-        // Zoomer sur Paris
+        objc_msgSend(root_view, add_subview, map_view);
+        GLOBAL_MAP_VIEW = map_view;
+
+        // Recentrer sur le premier waypoint (Paris Tour Eiffel)
         let first_wp = &WAYPOINTS[0];
-        let set_region_sel = sel_registerName(b"setRegion:animated:\0".as_ptr());
-        type SetRegionFn = unsafe extern "C" fn(*mut u8, *mut u8, MKCoordinateRegion, bool);
-        let set_region_fn: SetRegionFn = core::mem::transmute(objc_msgSend as *const ());
-        set_region_fn(map_view, set_region_sel, MKCoordinateRegion {
-            center_lat: first_wp.lat,
-            center_lon: first_wp.lon,
-            span_lat_delta: 0.025,
-            span_lon_delta: 0.025,
-        }, false);
+        let set_center_sel = sel_registerName(b"setCenterCoordinate:animated:\0".as_ptr());
+        type SetCenterFn = unsafe extern "C" fn(*mut u8, *mut u8, CLLocationCoordinate2D, bool);
+        let set_center_fn: SetCenterFn = core::mem::transmute(objc_msgSend as *const ());
+        set_center_fn(map_view, set_center_sel, CLLocationCoordinate2D { latitude: first_wp.lat, longitude: first_wp.lon }, false);
 
         // Créer l'annotation du véhicule en simulation
         let anno_cls = objc_getClass(b"MKPointAnnotation\0".as_ptr());
@@ -494,9 +495,6 @@ pub unsafe extern "C" fn did_finish_launching(
 
             GLOBAL_ANNOTATION = annotation;
         }
-
-        objc_msgSend(root_view, add_subview, map_view);
-        GLOBAL_MAP_VIEW = map_view;
     }
 
     // 6. Carte Télémétrie HUD

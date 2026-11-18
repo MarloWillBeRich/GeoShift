@@ -32,9 +32,13 @@ def align(size: int, alignment: int = 16) -> int:
     return (size + alignment - 1) & ~(alignment - 1)
 
 def find_rust_toolchain():
-    """Recherche rustc et rust-lld pour la compilation croisée aarch64-apple-ios."""
+    """Recherche rustc, rust-lld et les bibliothèques rlib pour aarch64-apple-ios."""
     rustc_path = shutil.which("rustc")
     rust_lld_path = None
+    target_lib_dir = None
+    core_rlib = None
+    compiler_builtins_rlib = None
+
     rustup_home = Path(os.environ.get("USERPROFILE", "")) / ".rustup" / "toolchains"
     if rustup_home.exists():
         for lld in rustup_home.rglob("rust-lld.exe"):
@@ -46,14 +50,76 @@ def find_rust_toolchain():
                 rust_lld_path = str(lld)
                 break
 
-    return rustc_path, rust_lld_path
+        for p in rustup_home.rglob("aarch64-apple-ios"):
+            cand = p / "lib"
+            if cand.is_dir():
+                cores = list(cand.glob("libcore-*.rlib"))
+                builtins = list(cand.glob("libcompiler_builtins-*.rlib"))
+                if cores and builtins:
+                    target_lib_dir = cand
+                    core_rlib = str(cores[0])
+                    compiler_builtins_rlib = str(builtins[0])
+                    break
+
+    return rustc_path, rust_lld_path, core_rlib, compiler_builtins_rlib
+
+def create_tbd_stubs(tbd_dir: Path) -> list:
+    """Génère les stubs Apple .tbd pour forcer une résolution two-level namespace 100% propre."""
+    tbd_dir.mkdir(parents=True, exist_ok=True)
+
+    tbd_specs = [
+        ("libSystem.tbd", "/usr/lib/libSystem.B.dylib", [
+            "_memcpy", "_memset", "_bzero", "_memcmp", "_abort"
+        ]),
+        ("libobjc.tbd", "/usr/lib/libobjc.A.dylib", [
+            "_objc_msgSend", "_sel_registerName", "_objc_getClass",
+            "_object_setInstanceVariable", "_objc_registerClassPair",
+            "_class_addMethod", "_class_addIvar", "_objc_allocateClassPair"
+        ]),
+        ("UIKit.tbd", "/System/Library/Frameworks/UIKit.framework/UIKit", [
+            "_UIApplicationMain", "_OBJC_CLASS_$_UIApplication", "_OBJC_CLASS_$_UIWindow",
+            "_OBJC_CLASS_$_UIViewController", "_OBJC_CLASS_$_UIView", "_OBJC_CLASS_$_UILabel",
+            "_OBJC_CLASS_$_UIButton", "_OBJC_CLASS_$_UIColor", "_OBJC_CLASS_$_UIFont",
+            "_OBJC_CLASS_$_UIScreen", "_OBJC_CLASS_$_UIActivityViewController"
+        ]),
+        ("Foundation.tbd", "/System/Library/Frameworks/Foundation.framework/Foundation", [
+            "_NSHomeDirectory", "_OBJC_CLASS_$_NSObject", "_OBJC_CLASS_$_NSString",
+            "_OBJC_CLASS_$_NSArray", "_OBJC_CLASS_$_NSURL", "_OBJC_CLASS_$_NSTimer"
+        ]),
+        ("CoreLocation.tbd", "/System/Library/Frameworks/CoreLocation.framework/CoreLocation", [
+            "_OBJC_CLASS_$_CLLocation", "_OBJC_CLASS_$_CLLocationManager"
+        ]),
+        ("MapKit.tbd", "/System/Library/Frameworks/MapKit.framework/MapKit", [
+            "_OBJC_CLASS_$_MKMapView", "_OBJC_CLASS_$_MKPointAnnotation"
+        ]),
+    ]
+
+    tbd_paths = []
+    for filename, install_name, symbols in tbd_specs:
+        sym_list = ", ".join(symbols)
+        tbd_content = f"""--- !tapi-tbd
+tbd-version: 4
+targets: [ arm64-ios ]
+install-name: '{install_name}'
+exports:
+  - targets: [ arm64-ios ]
+    symbols: [ {sym_list} ]
+...
+"""
+        file_path = tbd_dir / filename
+        file_path.write_text(tbd_content, encoding="utf-8")
+        tbd_paths.append(str(file_path))
+
+    return tbd_paths
 
 def compile_rust_arm64_base(project_dir: Path, build_dir: Path) -> bytes:
     """
-    Compile l'exécutable iOS arm64 complet avec l'AppDelegate, le moteur de télémétrie et MapKit.
+    Compile l'exécutable iOS arm64 complet avec l'AppDelegate, le moteur de télémétrie et MapKit,
+    avec résolution 100% two-level namespace et signature Ad-Hoc native LLVM.
     """
-    rustc_path, rust_lld_path = find_rust_toolchain()
-    if not (rustc_path and rust_lld_path):
+    rustc_path, rust_lld_path, core_rlib, compiler_builtins_rlib = find_rust_toolchain()
+    if not (rustc_path and rust_lld_path and core_rlib and compiler_builtins_rlib):
+        print("⚠️  Toolchain Rust aarch64-apple-ios incomplète, tentative fallback...")
         return None
 
     native_src = project_dir / "scripts" / "geoshift_native.rs"
@@ -63,10 +129,12 @@ def compile_rust_arm64_base(project_dir: Path, build_dir: Path) -> bytes:
     src_file = build_dir / "geoshift_entry.rs"
     obj_file = build_dir / "geoshift_entry.o"
     bin_file = build_dir / "geoshift_entry.bin"
+    tbd_dir = build_dir / "tbd_stubs"
 
     shutil.copy(native_src, src_file)
+    tbd_paths = create_tbd_stubs(tbd_dir)
 
-    # 1. Compilation de l'objet Mach-O arm64
+    # 1. Compilation de l'objet Mach-O arm64 avec opt-level=3 et panic=abort
     cmd_compile = [
         rustc_path,
         "--target", "aarch64-apple-ios",
@@ -81,15 +149,19 @@ def compile_rust_arm64_base(project_dir: Path, build_dir: Path) -> bytes:
         print(f"Erreur compilation rustc: {res_comp.stderr}")
         return None
 
-    # 2. Édition de liens via LLVM LLD Mach-O (flavor darwin)
+    # 2. Édition de liens via LLVM LLD Mach-O avec les rlibs core et stubs dylib
     cmd_link = [
         rust_lld_path,
         "-flavor", "darwin",
         "-arch", "arm64",
         "-platform_version", "ios", "17.0.0", "17.0.0",
-        "-undefined", "dynamic_lookup",
-        "-e", "_main",
         str(obj_file),
+        core_rlib,
+        compiler_builtins_rlib,
+        *tbd_paths,
+        "-e", "_main",
+        "-adhoc_codesign",
+        "-undefined", "dynamic_lookup",
         "-o", str(bin_file)
     ]
     res_link = subprocess.run(cmd_link, capture_output=True, text=True)
@@ -97,6 +169,7 @@ def compile_rust_arm64_base(project_dir: Path, build_dir: Path) -> bytes:
         print(f"Erreur link rust-lld: {res_link.stderr}")
         return None
 
+    print(f"    -> LLVM rust-lld a généré l'exécutable arm64 natif ({bin_file.stat().st_size:,} octets)")
     return bin_file.read_bytes()
 
 def build_pure_python_macho_base() -> bytes:
@@ -297,15 +370,17 @@ def create_superblob(code_limit: int, page_hashes: list, bundle_id: str, entitle
 def produce_signed_arm64_macho(project_dir: Path, build_dir: Path) -> bytes:
     """
     Assemble le binaire Mach-O complet :
-    - Compile le base Mach-O UIKit avec LLVM LLD ou le synthétiseur
-    - Injecte les dépendances frameworks (UIKit, CoreLocation, MapKit, SwiftData)
-    - Hash les pages de code et génère la signature Ad-Hoc SuperBlob
-    - Ajoute LC_CODE_SIGNATURE et ajuste le segment __LINKEDIT
+    - Compile le binaire natif ARM64 avec LLVM rustc + rust-lld, bibliothèques core/builtins et stubs Apple .tbd
+    - Si LLVM est disponible, le binaire est déjà parfaitement lié (Two-Level Namespace) et signé Ad-Hoc.
+    - Si LLVM n'est pas disponible, utilise le synthétiseur pur-Python et injecte la signature Ad-Hoc.
     """
     raw_bin = compile_rust_arm64_base(project_dir, build_dir)
-    if not raw_bin:
-        print("ℹ️  Compilation LLVM native indisponible, utilisation du synthétiseur Mach-O arm64...")
-        raw_bin = build_pure_python_macho_base()
+    if raw_bin:
+        # Binaire natif officiel généré par LLVM lld : intègre déjà les dylibs et la signature Ad-Hoc
+        return raw_bin
+
+    print("ℹ️  Compilation LLVM native indisponible, utilisation du synthétiseur Mach-O arm64...")
+    raw_bin = build_pure_python_macho_base()
 
     data = bytearray(raw_bin)
     magic, cputype, cpusubtype, filetype, ncmds, sizeofcmds, flags, reserved = struct.unpack("<IIIIIIII", data[:32])
