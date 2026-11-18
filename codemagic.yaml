@@ -1,10 +1,10 @@
 # ==============================================================================
-# GeoShift — Pipeline Codemagic CI/CD Professionnel (macOS Apple Silicon)
-# Compilation distante Swift 6 / SwiftUI, Exécution XCTest, Signature & Export IPA
+# GeoShift — Pipeline CI/CD Codemagic Officiel (macOS Apple Silicon)
+# Validation Swift 6 / SwiftUI, Exécution XCTest Stricte, Archive & Export IPA Non Signé
 # ==============================================================================
 workflows:
   ios-release:
-    name: "GeoShift iOS Production & Sideload IPA Build"
+    name: "GeoShift iOS Production Build & Test"
     max_build_duration: 30
     instance_type: mac_mini_m2
 
@@ -24,51 +24,64 @@ workflows:
     scripts:
       - name: "1. Diagnostic Système macOS & Toolchain Apple"
         script: |
-          echo "🍏 macOS Version : $(sw_vers -productVersion)"
-          echo "🛠️ Xcode Version : $(xcodebuild -version)"
+          set -e
+          echo "🍏 Version macOS : $(sw_vers -productVersion)"
+          echo "🛠️ Version Xcode : $(xcodebuild -version)"
           echo "📱 Runtimes Simulateur iOS disponibles :"
           xcrun simctl list runtimes
 
       - name: "2. Génération du Projet Xcode via XcodeGen"
         script: |
-          echo "🛠️ Vérification et installation de XcodeGen..."
+          set -e
+          echo "🛠️ Vérification / Installation de XcodeGen..."
           which xcodegen || brew install xcodegen
           echo "🔨 Génération de GeoShift.xcodeproj depuis project.yml..."
           xcodegen generate
-          ls -la GeoShift.xcodeproj
+          if [ ! -d "GeoShift.xcodeproj" ]; then
+            echo "❌ ERREUR CRITIQUE : GeoShift.xcodeproj n'a pas été généré !"
+            exit 1
+          fi
+          echo "✅ GeoShift.xcodeproj généré avec succès."
 
-      - name: "3. Résolution des Dépendances & Vérification SPM"
+      - name: "3. Résolution des Dépendances Swift (SPM)"
         script: |
-          echo "📦 Résolution des dépendances Swift Package Manager..."
+          set -e
           if [ -f "Package.swift" ]; then
+            echo "📦 Résolution des paquets Swift..."
             swift package resolve
           fi
 
-      - name: "4. Exécution de la Suite de Tests XCTest sur Simulateur iOS"
+      - name: "4. Exécution Stricte des Tests XCTest (Échec Bloquant)"
         script: |
-          echo "🧪 Détection dynamique d'un simulateur iPhone disponible..."
-          DEVICE_DEST=$(xcrun simctl list devices available | grep -E "iPhone" | head -n 1 | awk -F'(' '{print $1}' | xargs)
-          if [ -z "$DEVICE_DEST" ]; then DEVICE_DEST="iPhone 16"; fi
-          echo "📱 Simulateur cible sélectionné : $DEVICE_DEST"
+          set -e
+          echo "🔍 Détection dynamique d'un simulateur iPhone disponible..."
+          DEVICE_ID=$(xcrun simctl list devices available | grep -E "iPhone" | head -n 1 | sed -E 's/.* \(([0-9A-F-]+)\).*/\1/')
+          if [ -n "$DEVICE_ID" ]; then
+            SIM_DEST="id=$DEVICE_ID"
+          else
+            SIM_DEST="platform=iOS Simulator,name=iPhone 16"
+          fi
+          echo "📱 Simulateur sélectionné : $SIM_DEST"
 
-          echo "🚀 Lancement des tests unitaires géodésiques et cinématiques..."
+          echo "🧪 Lancement des tests unitaires et d'intégration XCTest..."
+          mkdir -p build/output
           xcodebuild test \
             -project GeoShift.xcodeproj \
             -scheme "GeoShift" \
-            -destination "platform=iOS Simulator,name=$DEVICE_DEST" \
-            -quiet || xcodebuild test \
-            -project GeoShift.xcodeproj \
-            -scheme "GeoShiftTests" \
-            -destination "platform=iOS Simulator,name=$DEVICE_DEST" \
-            -quiet || echo "⚠️ Tests unitaires exécutés."
+            -destination "$SIM_DEST" \
+            -resultBundlePath build/output/TestResults.xcresult \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
+          echo "✅ Tous les tests XCTest ont réussi avec succès !"
 
       - name: "5. Compilation de l'Archive Xcode Release (arm64 native)"
         script: |
-          echo "🔨 Compilation de l'archive Release Xcode pour iPhone réel (arm64)..."
+          set -e
+          echo "🔨 Compilation de l'archive Release pour architecture réelle arm64..."
           mkdir -p build/output
           xcodebuild archive \
             -project GeoShift.xcodeproj \
-            -scheme GeoShift \
+            -scheme "GeoShift" \
             -configuration Release \
             -destination 'generic/platform=iOS' \
             -archivePath build/output/GeoShift.xcarchive \
@@ -76,43 +89,66 @@ workflows:
             CODE_SIGNING_REQUIRED=NO \
             COMPILER_INDEX_STORE_ENABLE=NO
 
-      - name: "6. Génération & Export des Archives .IPA (Sideload & Développement)"
+      - name: "6. Vérification du Binaire Compilé dans l'Archive"
         script: |
-          echo "📦 Création des archives IPA prêtes au déploiement..."
-          mkdir -p build/output/ipa
+          set -e
           APP_SOURCE="build/output/GeoShift.xcarchive/Products/Applications/GeoShift.app"
-
           if [ ! -d "$APP_SOURCE" ]; then
-            echo "❌ Erreur : GeoShift.app introuvable dans l'archive !"
+            echo "❌ ERREUR CRITIQUE : GeoShift.app introuvable dans l'archive : $APP_SOURCE"
             exit 1
           fi
+          if [ ! -f "$APP_SOURCE/GeoShift" ]; then
+            echo "❌ ERREUR CRITIQUE : L'exécutable Mach-O GeoShift est absent de $APP_SOURCE"
+            exit 1
+          fi
+          echo "✅ Application compilée vérifiée : $APP_SOURCE"
 
-          # Signature Ad-Hoc sur le bundle compilé
-          codesign --force --deep --sign - "$APP_SOURCE" 2>/dev/null || true
+      - name: "7. Vérification du Bundle ID (com.geoshift.app)"
+        script: |
+          set -e
+          APP_SOURCE="build/output/GeoShift.xcarchive/Products/Applications/GeoShift.app"
+          INFO_PLIST="$APP_SOURCE/Info.plist"
+          BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$INFO_PLIST" 2>/dev/null || defaults read "$PWD/$INFO_PLIST" CFBundleIdentifier)
+          echo "📋 Bundle Identifier détecté : $BUNDLE_ID"
+          if [ "$BUNDLE_ID" != "com.geoshift.app" ]; then
+            echo "❌ ERREUR CRITIQUE : Le Bundle ID est '$BUNDLE_ID', attendu 'com.geoshift.app' !"
+            exit 1
+          fi
+          echo "✅ Bundle ID com.geoshift.app validé."
 
-          # Packaging IPA Sideload universel
+      - name: "8. Génération du Paquet IPA Non Signé (Ready pour Sideloadly)"
+        script: |
+          set -e
+          echo "📦 Création du paquet IPA non signé..."
+          mkdir -p build/output/ipa
           mkdir -p build/output/Payload
+          APP_SOURCE="build/output/GeoShift.xcarchive/Products/Applications/GeoShift.app"
+
           cp -R "$APP_SOURCE" build/output/Payload/
           cd build/output
-          zip -q -r -y "ipa/GeoShift-Sideload.ipa" "Payload"
-          cp -f "ipa/GeoShift-Sideload.ipa" "ipa/GeoShift-Unsigned.ipa"
+          zip -q -r -y "ipa/GeoShift-Unsigned.ipa" "Payload"
           rm -rf "Payload"
           cd ../..
 
-          # Copie à la racine pour distribution directe
-          cp build/output/ipa/GeoShift-Sideload.ipa ./GeoShift-Sideload.ipa
+          IPA_PATH="build/output/ipa/GeoShift-Unsigned.ipa"
+          if [ ! -f "$IPA_PATH" ]; then
+            echo "❌ ERREUR CRITIQUE : L'archive IPA non signée n'a pas pu être créée !"
+            exit 1
+          fi
 
-      - name: "7. Audit d'Intégrité Binaire & Empreinte Cryptographique"
-        script: |
-          echo "🔍 Inspection de l'intégrité de l'exécutable produit..."
-          IPA_FILE="build/output/ipa/GeoShift-Sideload.ipa"
-          ls -lh "$IPA_FILE"
-          echo "🔒 SHA-256 : $(shasum -a 256 "$IPA_FILE" | awk '{print $1}')"
+          echo "🔍 Vérification de la structure interne du fichier ZIP..."
+          unzip -l "$IPA_PATH" | grep -E "Payload/GeoShift.app/GeoShift$" || {
+            echo "❌ ERREUR CRITIQUE : La structure Payload/GeoShift.app/GeoShift est invalide !"
+            exit 1
+          }
+          echo "✅ Structure Payload/GeoShift.app validée."
+          echo "📍 Archive générée : $IPA_PATH ($(ls -lh "$IPA_PATH" | awk '{print $5}'))"
+          echo "🔒 SHA-256 : $(shasum -a 256 "$IPA_PATH" | awk '{print $1}')"
 
     artifacts:
-      - build/output/ipa/*.ipa
-      - build/output/*.xcarchive
-      - "*.ipa"
+      - build/output/ipa/GeoShift-Unsigned.ipa
+      - build/output/TestResults.xcresult
+      - build/output/GeoShift.xcarchive
 
     publishing:
       email:

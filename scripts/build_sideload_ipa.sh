@@ -2,11 +2,11 @@
 set -euo pipefail
 
 # ==============================================================================
-# GeoShift — Script de Build Release Sideloadable (.IPA Universel)
-# Compatible : Sideloadly, AltStore, SideStore, Feather, TrollStore
+# GeoShift — Script de Build Release IPA Non Signé (macOS)
+# Destiné à être signé ultérieurement par Sideloadly / AltStore
 # ==============================================================================
 
-echo "🚀 [GeoShift Sideload] Démarrage du pipeline de compilation..."
+echo "🚀 [GeoShift] Démarrage du pipeline de compilation Release..."
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$PROJECT_DIR"
@@ -14,7 +14,7 @@ cd "$PROJECT_DIR"
 BUILD_DIR="$PROJECT_DIR/build"
 ARCHIVE_PATH="$BUILD_DIR/GeoShift.xcarchive"
 PAYLOAD_DIR="$BUILD_DIR/Payload"
-SIDELOAD_IPA="$BUILD_DIR/GeoShift-Sideload.ipa"
+UNSIGNED_IPA="$BUILD_DIR/GeoShift-Unsigned.ipa"
 
 mkdir -p "$BUILD_DIR"
 
@@ -35,10 +35,10 @@ xcodegen generate
 # 2. Nettoyage des builds précédents
 rm -rf "$ARCHIVE_PATH"
 rm -rf "$PAYLOAD_DIR"
-rm -f "$SIDELOAD_IPA"
+rm -f "$UNSIGNED_IPA"
 
 # 3. Compilation Release pour architecture réelle arm64 (iphoneos)
-echo "📦 Compilation Release de l'archive iOS sans certificat payant..."
+echo "📦 Compilation Release de l'archive iOS sans signature..."
 xcodebuild archive \
     -project GeoShift.xcodeproj \
     -scheme GeoShift \
@@ -57,12 +57,13 @@ if [ ! -d "$APP_SOURCE" ]; then
     exit 1
 fi
 
-# 4. Signature Ad-Hoc locale (requise pour intégrité binaire avant resignature tierce)
-echo "🔏 Application de la signature Ad-Hoc..."
-if command -v codesign &> /dev/null; then
-    codesign --force --deep --sign - "$APP_SOURCE" 2>/dev/null || true
-elif command -v ldid &> /dev/null; then
-    ldid -S "$APP_SOURCE" 2>/dev/null || true
+# 4. Vérification du Bundle Identifier
+INFO_PLIST="$APP_SOURCE/Info.plist"
+BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$INFO_PLIST" 2>/dev/null || defaults read "$PWD/$INFO_PLIST" CFBundleIdentifier)
+echo "📋 CFBundleIdentifier détecté : $BUNDLE_ID"
+if [ "$BUNDLE_ID" != "com.geoshift.app" ]; then
+    echo "❌ Erreur critique : Le Bundle ID est '$BUNDLE_ID', attendu 'com.geoshift.app' !"
+    exit 1
 fi
 
 # 5. Création de la structure Payload/ standard pour .ipa
@@ -70,20 +71,28 @@ echo "📂 Création de l'arborescence Payload..."
 mkdir -p "$PAYLOAD_DIR"
 cp -R "$APP_SOURCE" "$PAYLOAD_DIR/"
 
-# 6. Compression ZIP au format .ipa
-echo "📦 Génération de l'archive GeoShift-Sideload.ipa..."
+# 6. Compression ZIP au format .ipa non signé
+echo "📦 Génération de l'archive GeoShift-Unsigned.ipa..."
 cd "$BUILD_DIR"
-zip -q -r -y "GeoShift-Sideload.ipa" "Payload"
+zip -q -r -y "GeoShift-Unsigned.ipa" "Payload"
 rm -rf "Payload"
-
-# Copie miroir vers GeoShift-Unsigned.ipa pour compatibilité maximale
-cp -f "GeoShift-Sideload.ipa" "GeoShift-Unsigned.ipa"
 
 cd "$PROJECT_DIR"
 
-echo "✅ [GeoShift Sideload] Archive IPA générée avec succès !"
-echo "📍 Emplacement : $SIDELOAD_IPA"
-if command -v shasum &> /dev/null; then
-    echo "🔒 SHA256 : $(shasum -a 256 "$SIDELOAD_IPA" | awk '{print $1}')"
+if [ ! -f "$UNSIGNED_IPA" ]; then
+    echo "❌ Erreur critique : L'archive IPA non signée n'a pas pu être générée !"
+    exit 1
 fi
-ls -lh "$BUILD_DIR"
+
+echo "🔍 Vérification de la structure du fichier ZIP..."
+unzip -l "$UNSIGNED_IPA" | grep -E "Payload/GeoShift.app/GeoShift$" || {
+    echo "❌ Erreur critique : La structure Payload/GeoShift.app est invalide !"
+    exit 1
+}
+
+echo "✅ [GeoShift] Archive IPA non signée générée avec succès !"
+echo "📍 Emplacement : $UNSIGNED_IPA"
+if command -v shasum &> /dev/null; then
+    echo "🔒 SHA256 : $(shasum -a 256 "$UNSIGNED_IPA" | awk '{print $1}')"
+fi
+ls -lh "$UNSIGNED_IPA"
