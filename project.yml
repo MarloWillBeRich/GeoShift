@@ -75,3 +75,31 @@ targets:
         SWIFT_STRICT_CONCURRENCY: complete
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/GeoShift.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/GeoShift"
         BUNDLE_LOADER: "$(TEST_HOST)"
+
+schemes:
+  GeoShift:
+    build:
+      targets:
+        GeoShift: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - GeoShiftTests
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release
+
+  GeoShiftTests:
+    build:
+      targets:
+        GeoShift: all
+        GeoShiftTests: all
+    test:
+      config: Debug
+      targets:
+        - GeoShiftTests

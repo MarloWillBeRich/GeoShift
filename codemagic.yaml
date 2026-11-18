@@ -37,24 +37,29 @@ workflows:
           xcodegen generate
           ls -la GeoShift.xcodeproj
 
-      - name: "3. Résolution des Dépendances & Vérification Concurrence Swift 6"
+      - name: "3. Résolution des Dépendances & Vérification SPM"
         script: |
-          echo "📦 Vérification de la configuration Swift 6 et SPM..."
+          echo "📦 Résolution des dépendances Swift Package Manager..."
           if [ -f "Package.swift" ]; then
             swift package resolve
           fi
 
       - name: "4. Exécution de la Suite de Tests XCTest sur Simulateur iOS"
         script: |
-          echo "🧪 Exécution des tests unitaires de géodésie, cinématique et export GPX..."
+          echo "🧪 Détection dynamique d'un simulateur iPhone disponible..."
+          DEVICE_DEST=$(xcrun simctl list devices available | grep -E "iPhone" | head -n 1 | awk -F'(' '{print $1}' | xargs)
+          if [ -z "$DEVICE_DEST" ]; then DEVICE_DEST="iPhone 16"; fi
+          echo "📱 Simulateur cible sélectionné : $DEVICE_DEST"
+
+          echo "🚀 Lancement des tests unitaires géodésiques et cinématiques..."
           xcodebuild test \
             -project GeoShift.xcodeproj \
-            -scheme "GeoShiftTests" \
-            -destination 'platform=iOS Simulator,name=iPhone 15 Pro,OS=latest' \
+            -scheme "GeoShift" \
+            -destination "platform=iOS Simulator,name=$DEVICE_DEST" \
             -quiet || xcodebuild test \
             -project GeoShift.xcodeproj \
-            -scheme "GeoShift" \
-            -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' \
+            -scheme "GeoShiftTests" \
+            -destination "platform=iOS Simulator,name=$DEVICE_DEST" \
             -quiet || echo "⚠️ Tests unitaires exécutés."
 
       - name: "5. Compilation de l'Archive Xcode Release (arm64 native)"
@@ -71,7 +76,7 @@ workflows:
             CODE_SIGNING_REQUIRED=NO \
             COMPILER_INDEX_STORE_ENABLE=NO
 
-      - name: "6. Génération & Signature des Archives .IPA (Sideload & Développement)"
+      - name: "6. Génération & Export des Archives .IPA (Sideload & Développement)"
         script: |
           echo "📦 Création des archives IPA prêtes au déploiement..."
           mkdir -p build/output/ipa
@@ -85,7 +90,7 @@ workflows:
           # Signature Ad-Hoc sur le bundle compilé
           codesign --force --deep --sign - "$APP_SOURCE" 2>/dev/null || true
 
-          # Packaging IPA Sideload
+          # Packaging IPA Sideload universel
           mkdir -p build/output/Payload
           cp -R "$APP_SOURCE" build/output/Payload/
           cd build/output
