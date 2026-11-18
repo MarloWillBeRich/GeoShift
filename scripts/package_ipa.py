@@ -575,6 +575,8 @@ def create_complete_ipa_package(project_dir: Path):
     <string>16.0</string>
     <key>DTPlatformName</key>
     <string>iphoneos</string>
+    <key>DTPlatformVersion</key>
+    <string>17.0</string>
     <key>DTSDKName</key>
     <string>iphoneos17.0</string>
     <key>UIRequiresFullScreen</key>

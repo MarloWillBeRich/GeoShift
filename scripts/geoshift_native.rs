@@ -22,8 +22,8 @@ extern "C" {
     fn UIApplicationMain(
         argc: i32,
         argv: *const *const u8,
-        principal_class_name: *const u8,
-        delegate_class_name: *const u8,
+        principal_class_name: *mut u8,
+        delegate_class_name: *mut u8,
     ) -> i32;
 }
 
@@ -670,11 +670,12 @@ pub extern "C" fn main(argc: i32, argv: *const *const u8) -> i32 {
 
         objc_registerClassPair(app_del_cls);
 
+        let app_del_name = ns_string(b"AppDelegate\0");
         UIApplicationMain(
             argc,
             argv,
-            core::ptr::null(),
-            b"AppDelegate\0".as_ptr(),
+            core::ptr::null_mut(),
+            app_del_name,
         )
     }
 }
