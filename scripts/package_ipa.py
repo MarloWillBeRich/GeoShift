@@ -73,8 +73,8 @@ def create_tbd_stubs(tbd_dir: Path) -> list:
         ]),
         ("libobjc.tbd", "/usr/lib/libobjc.A.dylib", [
             "_objc_msgSend", "_sel_registerName", "_objc_getClass",
-            "_object_setInstanceVariable", "_objc_registerClassPair",
-            "_class_addMethod", "_class_addIvar", "_objc_allocateClassPair"
+            "_objc_registerClassPair", "_class_addMethod", "_class_addIvar",
+            "_objc_allocateClassPair", "_objc_autoreleasePoolPush", "_objc_autoreleasePoolPop"
         ]),
         ("UIKit.tbd", "/System/Library/Frameworks/UIKit.framework/UIKit", [
             "_UIApplicationMain", "_OBJC_CLASS_$_UIApplication", "_OBJC_CLASS_$_UIWindow",

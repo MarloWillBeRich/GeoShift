@@ -17,7 +17,8 @@ extern "C" {
     fn objc_registerClassPair(cls: *mut u8);
     fn class_addMethod(cls: *mut u8, name: *mut u8, imp: usize, types: *const u8) -> bool;
     fn class_addIvar(cls: *mut u8, name: *const u8, size: usize, alignment: u8, types: *const u8) -> bool;
-    fn object_setInstanceVariable(obj: *mut u8, name: *const u8, value: *mut u8) -> *mut u8;
+    fn objc_autoreleasePoolPush() -> *mut u8;
+    fn objc_autoreleasePoolPop(pool: *mut u8);
     fn NSHomeDirectory() -> *mut u8;
     fn UIApplicationMain(
         argc: i32,
@@ -312,14 +313,16 @@ pub unsafe extern "C" fn on_toggle_simulation(_app_del: *mut u8, _cmd: *mut u8, 
 
     let set_bg_sel = sel_registerName(b"setBackgroundColor:\0".as_ptr());
 
-    if SIMULATION_RUNNING {
-        stf(GLOBAL_BTN1, set_btn_title, ns_string(b"Mettre en Pause\0"), 0);
-        let accent_blue = ui_color(72.0, 169.0, 255.0, 1.0);
-        objc_msgSend(GLOBAL_BTN1, set_bg_sel, accent_blue);
-    } else {
-        stf(GLOBAL_BTN1, set_btn_title, ns_string(b"Reprendre Trajet\0"), 0);
-        let orange_color = ui_color(255.0, 184.0, 77.0, 1.0);
-        objc_msgSend(GLOBAL_BTN1, set_bg_sel, orange_color);
+    if !GLOBAL_BTN1.is_null() {
+        if SIMULATION_RUNNING {
+            stf(GLOBAL_BTN1, set_btn_title, ns_string(b"Mettre en Pause\0"), 0);
+            let accent_blue = ui_color(72.0, 169.0, 255.0, 1.0);
+            objc_msgSend(GLOBAL_BTN1, set_bg_sel, accent_blue);
+        } else {
+            stf(GLOBAL_BTN1, set_btn_title, ns_string(b"Reprendre Trajet\0"), 0);
+            let orange_color = ui_color(255.0, 184.0, 77.0, 1.0);
+            objc_msgSend(GLOBAL_BTN1, set_bg_sel, orange_color);
+        }
     }
 }
 
@@ -360,7 +363,7 @@ pub unsafe extern "C" fn on_export_gpx(_app_del: *mut u8, _cmd: *mut u8, _sender
         objc_msgSend(popover, set_source_sel, root_view);
     }
 
-    if !GLOBAL_ROOT_VC.is_null() {
+    if !act_vc.is_null() && !GLOBAL_ROOT_VC.is_null() {
         let present_sel = sel_registerName(b"presentViewController:animated:completion:\0".as_ptr());
         type PresentFn = unsafe extern "C" fn(*mut u8, *mut u8, *mut u8, bool, *mut u8);
         let present_fn: PresentFn = core::mem::transmute(objc_msgSend as *const ());
@@ -609,73 +612,80 @@ pub unsafe extern "C" fn did_finish_launching(
 #[no_mangle]
 pub extern "C" fn main(argc: i32, argv: *const *const u8) -> i32 {
     unsafe {
+        let pool = objc_autoreleasePoolPush();
+
         let ns_obj = objc_getClass(b"NSObject\0".as_ptr());
         let app_del_cls = objc_allocateClassPair(ns_obj, b"AppDelegate\0".as_ptr(), 0);
 
-        class_addIvar(
-            app_del_cls,
-            b"window\0".as_ptr(),
-            core::mem::size_of::<*mut u8>(),
-            3,
-            b"@\0".as_ptr(),
-        );
+        if !app_del_cls.is_null() {
+            class_addIvar(
+                app_del_cls,
+                b"window\0".as_ptr(),
+                core::mem::size_of::<*mut u8>(),
+                3,
+                b"@\0".as_ptr(),
+            );
 
-        let launch_sel = sel_registerName(b"application:didFinishLaunchingWithOptions:\0".as_ptr());
-        class_addMethod(
-            app_del_cls,
-            launch_sel,
-            did_finish_launching as *const () as usize,
-            b"B@:@@\0".as_ptr(),
-        );
+            let launch_sel = sel_registerName(b"application:didFinishLaunchingWithOptions:\0".as_ptr());
+            class_addMethod(
+                app_del_cls,
+                launch_sel,
+                did_finish_launching as *const () as usize,
+                b"B@:@@\0".as_ptr(),
+            );
 
-        let win_sel = sel_registerName(b"window\0".as_ptr());
-        class_addMethod(
-            app_del_cls,
-            win_sel,
-            get_window as *const () as usize,
-            b"@@:\0".as_ptr(),
-        );
+            let win_sel = sel_registerName(b"window\0".as_ptr());
+            class_addMethod(
+                app_del_cls,
+                win_sel,
+                get_window as *const () as usize,
+                b"@@:\0".as_ptr(),
+            );
 
-        let set_win_sel = sel_registerName(b"setWindow:\0".as_ptr());
-        class_addMethod(
-            app_del_cls,
-            set_win_sel,
-            set_window as *const () as usize,
-            b"v@:@\0".as_ptr(),
-        );
+            let set_win_sel = sel_registerName(b"setWindow:\0".as_ptr());
+            class_addMethod(
+                app_del_cls,
+                set_win_sel,
+                set_window as *const () as usize,
+                b"v@:@\0".as_ptr(),
+            );
 
-        let tick_sel = sel_registerName(b"onTimerTick:\0".as_ptr());
-        class_addMethod(
-            app_del_cls,
-            tick_sel,
-            on_timer_tick as *const () as usize,
-            b"v@:@\0".as_ptr(),
-        );
+            let tick_sel = sel_registerName(b"onTimerTick:\0".as_ptr());
+            class_addMethod(
+                app_del_cls,
+                tick_sel,
+                on_timer_tick as *const () as usize,
+                b"v@:@\0".as_ptr(),
+            );
 
-        let toggle_sel = sel_registerName(b"onToggleSimulation:\0".as_ptr());
-        class_addMethod(
-            app_del_cls,
-            toggle_sel,
-            on_toggle_simulation as *const () as usize,
-            b"v@:@\0".as_ptr(),
-        );
+            let toggle_sel = sel_registerName(b"onToggleSimulation:\0".as_ptr());
+            class_addMethod(
+                app_del_cls,
+                toggle_sel,
+                on_toggle_simulation as *const () as usize,
+                b"v@:@\0".as_ptr(),
+            );
 
-        let export_sel = sel_registerName(b"onExportGPX:\0".as_ptr());
-        class_addMethod(
-            app_del_cls,
-            export_sel,
-            on_export_gpx as *const () as usize,
-            b"v@:@\0".as_ptr(),
-        );
+            let export_sel = sel_registerName(b"onExportGPX:\0".as_ptr());
+            class_addMethod(
+                app_del_cls,
+                export_sel,
+                on_export_gpx as *const () as usize,
+                b"v@:@\0".as_ptr(),
+            );
 
-        objc_registerClassPair(app_del_cls);
+            objc_registerClassPair(app_del_cls);
+        }
 
         let app_del_name = ns_string(b"AppDelegate\0");
-        UIApplicationMain(
+        let ret = UIApplicationMain(
             argc,
             argv,
             core::ptr::null_mut(),
             app_del_name,
-        )
+        );
+
+        objc_autoreleasePoolPop(pool);
+        ret
     }
 }
