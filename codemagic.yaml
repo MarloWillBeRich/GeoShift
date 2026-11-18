@@ -33,8 +33,19 @@ workflows:
       - name: "2. Génération du Projet Xcode via XcodeGen"
         script: |
           set -e
+          export PATH="/usr/local/bin:/opt/homebrew/bin:$HOME/.local/bin:$PATH"
           echo "🛠️ Vérification / Installation de XcodeGen..."
-          which xcodegen || brew install xcodegen
+          if ! command -v xcodegen &> /dev/null; then
+            echo "⚡ Téléchargement et installation directe de XcodeGen 2.47.0..."
+            curl -Ls https://github.com/yonaskolb/XcodeGen/releases/download/2.47.0/xcodegen.zip -o /tmp/xcodegen.zip
+            unzip -q /tmp/xcodegen.zip -d /tmp
+            sudo /tmp/xcodegen/install.sh || {
+              mkdir -p ~/.local/bin
+              PREFIX=~/.local /tmp/xcodegen/install.sh
+            }
+            rm -rf /tmp/xcodegen.zip /tmp/xcodegen
+          fi
+          echo "XcodeGen version : $(xcodegen --version || true)"
           echo "🔨 Génération de GeoShift.xcodeproj depuis project.yml..."
           xcodegen generate
           if [ ! -d "GeoShift.xcodeproj" ]; then
@@ -46,6 +57,7 @@ workflows:
       - name: "3. Résolution des Dépendances Swift (SPM)"
         script: |
           set -e
+          export PATH="/usr/local/bin:/opt/homebrew/bin:$HOME/.local/bin:$PATH"
           if [ -f "Package.swift" ]; then
             echo "📦 Résolution des paquets Swift..."
             swift package resolve
@@ -54,10 +66,13 @@ workflows:
       - name: "4. Exécution Stricte des Tests XCTest (Échec Bloquant)"
         script: |
           set -e
+          export PATH="/usr/local/bin:/opt/homebrew/bin:$HOME/.local/bin:$PATH"
           echo "🔍 Détection dynamique d'un simulateur iPhone disponible..."
           DEVICE_ID=$(xcrun simctl list devices available | grep -E "iPhone" | head -n 1 | sed -E 's/.* \(([0-9A-F-]+)\).*/\1/')
           if [ -n "$DEVICE_ID" ]; then
-            SIM_DEST="id=$DEVICE_ID"
+            SIM_DEST="platform=iOS Simulator,id=$DEVICE_ID"
+            echo "📱 Démarrage du simulateur ($DEVICE_ID)..."
+            xcrun simctl boot "$DEVICE_ID" 2>/dev/null || true
           else
             SIM_DEST="platform=iOS Simulator,name=iPhone 16"
           fi
@@ -70,6 +85,7 @@ workflows:
             -scheme "GeoShift" \
             -destination "$SIM_DEST" \
             -resultBundlePath build/output/TestResults.xcresult \
+            CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO
           echo "✅ Tous les tests XCTest ont réussi avec succès !"
@@ -77,6 +93,7 @@ workflows:
       - name: "5. Compilation de l'Archive Xcode Release (arm64 native)"
         script: |
           set -e
+          export PATH="/usr/local/bin:/opt/homebrew/bin:$HOME/.local/bin:$PATH"
           echo "🔨 Compilation de l'archive Release pour architecture réelle arm64..."
           mkdir -p build/output
           xcodebuild archive \
@@ -85,6 +102,7 @@ workflows:
             -configuration Release \
             -destination 'generic/platform=iOS' \
             -archivePath build/output/GeoShift.xcarchive \
+            CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             COMPILER_INDEX_STORE_ENABLE=NO
@@ -147,6 +165,7 @@ workflows:
 
     artifacts:
       - build/output/ipa/GeoShift-Unsigned.ipa
+      - build/output/ipa/*.ipa
       - build/output/TestResults.xcresult
       - build/output/GeoShift.xcarchive
 

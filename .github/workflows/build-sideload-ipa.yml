@@ -28,7 +28,14 @@ jobs:
 
       - name: Install XcodeGen
         run: |
-          brew install xcodegen
+          if ! command -v xcodegen &> /dev/null; then
+            echo "⚡ Installation rapide de XcodeGen 2.47.0..."
+            curl -Ls https://github.com/yonaskolb/XcodeGen/releases/download/2.47.0/xcodegen.zip -o /tmp/xcodegen.zip
+            unzip -q /tmp/xcodegen.zip -d /tmp
+            sudo /tmp/xcodegen/install.sh
+            rm -rf /tmp/xcodegen.zip /tmp/xcodegen
+          fi
+          xcodegen --version
 
       - name: Generate Xcode Project
         run: |

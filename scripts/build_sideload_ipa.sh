@@ -19,15 +19,18 @@ UNSIGNED_IPA="$BUILD_DIR/GeoShift-Unsigned.ipa"
 mkdir -p "$BUILD_DIR"
 
 # 1. Vérification & Génération du projet Xcode via XcodeGen
+export PATH="/usr/local/bin:/opt/homebrew/bin:$HOME/.local/bin:$PATH"
 if ! command -v xcodegen &> /dev/null; then
-    echo "⚠️  XcodeGen n'est pas détecté. Tentative d'installation via Homebrew..."
-    if command -v brew &> /dev/null; then
-        brew install xcodegen
-    else
-        echo "❌ Erreur : XcodeGen requis (brew install xcodegen)."
-        exit 1
-    fi
+    echo "⚠️  XcodeGen n'est pas détecté. Installation rapide depuis GitHub Release 2.47.0..."
+    curl -Ls https://github.com/yonaskolb/XcodeGen/releases/download/2.47.0/xcodegen.zip -o /tmp/xcodegen.zip
+    unzip -q /tmp/xcodegen.zip -d /tmp
+    sudo /tmp/xcodegen/install.sh 2>/dev/null || {
+        mkdir -p "$HOME/.local/bin"
+        PREFIX="$HOME/.local" /tmp/xcodegen/install.sh
+    }
+    rm -rf /tmp/xcodegen.zip /tmp/xcodegen
 fi
+echo "XcodeGen version : $(xcodegen --version || true)"
 
 echo "🛠️  Génération du projet Xcode (GeoShift.xcodeproj)..."
 xcodegen generate
