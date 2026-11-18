@@ -350,6 +350,16 @@ pub unsafe extern "C" fn on_export_gpx(_app_del: *mut u8, _cmd: *mut u8, _sender
     let act_init_sel = sel_registerName(b"initWithActivityItems:applicationActivities:\0".as_ptr());
     let act_vc = objc_msgSend(raw_act, act_init_sel, items, core::ptr::null_mut::<u8>());
 
+    // Compatibilité iPad : configurer popoverPresentationController pour éviter NSGenericException
+    let popover_sel = sel_registerName(b"popoverPresentationController\0".as_ptr());
+    let popover = objc_msgSend(act_vc, popover_sel);
+    if !popover.is_null() && !GLOBAL_ROOT_VC.is_null() {
+        let root_view_sel = sel_registerName(b"view\0".as_ptr());
+        let root_view = objc_msgSend(GLOBAL_ROOT_VC, root_view_sel);
+        let set_source_sel = sel_registerName(b"setSourceView:\0".as_ptr());
+        objc_msgSend(popover, set_source_sel, root_view);
+    }
+
     if !GLOBAL_ROOT_VC.is_null() {
         let present_sel = sel_registerName(b"presentViewController:animated:completion:\0".as_ptr());
         type PresentFn = unsafe extern "C" fn(*mut u8, *mut u8, *mut u8, bool, *mut u8);
@@ -400,7 +410,11 @@ pub unsafe extern "C" fn did_finish_launching(
     let bounds_sel = sel_registerName(b"bounds\0".as_ptr());
     type BoundsFn = unsafe extern "C" fn(*mut u8, *mut u8) -> CGRect;
     let bounds_fn: BoundsFn = core::mem::transmute(objc_msgSend as *const ());
-    let screen_bounds = bounds_fn(main_screen, bounds_sel);
+    let screen_bounds = if !main_screen.is_null() {
+        bounds_fn(main_screen, bounds_sel)
+    } else {
+        CGRect { x: 0.0, y: 0.0, width: 393.0, height: 852.0 }
+    };
 
     let screen_w = if screen_bounds.width > 0.0 { screen_bounds.width } else { 393.0 };
     let screen_h = if screen_bounds.height > 0.0 { screen_bounds.height } else { 852.0 };
@@ -415,7 +429,8 @@ pub unsafe extern "C" fn did_finish_launching(
     let window = win_init_fn(raw_win, init_frame_sel, CGRect { x: 0.0, y: 0.0, width: screen_w, height: screen_h });
 
     GLOBAL_WINDOW = window;
-    object_setInstanceVariable(app_delegate, b"window\0".as_ptr(), window);
+    let set_win_sel = sel_registerName(b"setWindow:\0".as_ptr());
+    objc_msgSend(app_delegate, set_win_sel, window);
 
     // Palette GeoShift sombre
     let bg_color = ui_color(9.0, 11.0, 16.0, 1.0);
@@ -449,9 +464,13 @@ pub unsafe extern "C" fn did_finish_launching(
     frame_fn(badge_label, set_frame, screen_w - 176.0, top_y + 6.0, 160.0, 24.0);
     let badge_layer = objc_msgSend(badge_label, sel_registerName(b"layer\0".as_ptr()));
     cf(badge_layer, sel_registerName(b"setCornerRadius:\0".as_ptr()), 8.0);
+    type SetBoolFn = unsafe extern "C" fn(*mut u8, *mut u8, bool);
+    let set_bool_fn: SetBoolFn = core::mem::transmute(objc_msgSend as *const ());
+    let masks_sel = sel_registerName(b"setMasksToBounds:\0".as_ptr());
+
     let badge_bg = ui_color(18.0, 34.0, 28.0, 1.0);
     objc_msgSend(badge_label, set_bg, badge_bg);
-    objc_msgSend(badge_layer, sel_registerName(b"setMasksToBounds:\0".as_ptr()), 1 as usize as *mut u8);
+    set_bool_fn(badge_layer, masks_sel, true);
     objc_msgSend(root_view, add_subview, badge_label);
     GLOBAL_BADGE_LABEL = badge_label;
 
@@ -464,7 +483,7 @@ pub unsafe extern "C" fn did_finish_launching(
         frame_fn(map_view, set_frame, 16.0, map_y, content_w, 230.0);
         let map_layer = objc_msgSend(map_view, sel_registerName(b"layer\0".as_ptr()));
         cf(map_layer, sel_registerName(b"setCornerRadius:\0".as_ptr()), 16.0);
-        objc_msgSend(map_layer, sel_registerName(b"setMasksToBounds:\0".as_ptr()), 1 as usize as *mut u8);
+        set_bool_fn(map_layer, masks_sel, true);
 
         objc_msgSend(root_view, add_subview, map_view);
         GLOBAL_MAP_VIEW = map_view;

@@ -154,7 +154,7 @@ def compile_rust_arm64_base(project_dir: Path, build_dir: Path) -> bytes:
         rust_lld_path,
         "-flavor", "darwin",
         "-arch", "arm64",
-        "-platform_version", "ios", "17.0.0", "17.0.0",
+        "-platform_version", "ios", "16.0.0", "17.0.0",
         str(obj_file),
         core_rlib,
         compiler_builtins_rlib,
@@ -572,7 +572,7 @@ def create_complete_ipa_package(project_dir: Path):
         <integer>2</integer>
     </array>
     <key>MinimumOSVersion</key>
-    <string>17.0</string>
+    <string>16.0</string>
     <key>DTPlatformName</key>
     <string>iphoneos</string>
     <key>DTSDKName</key>
